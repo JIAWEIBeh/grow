@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>成本核算原型</title>
+  <link rel="stylesheet" href="https://unpkg.com/iview/dist/styles/iview.css">
+  <link rel="stylesheet" href="https://unpkg.com/vxe-table/lib/style.css">
+  <style>
+    body { padding: 16px; }
+    .section { margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <i-layout>
+    <i-header>成本核算原型</i-header>
+    <i-content>
+      <div class="section">
+        <i-card title="物料 (Material)">
+          <vxe-table :data="materials" border height="240">
+            <vxe-column field="id" title="ID" width="60"></vxe-column>
+            <vxe-column field="code" title="编码"></vxe-column>
+            <vxe-column field="name" title="名称"></vxe-column>
+            <vxe-column field="unit" title="单位" width="80"></vxe-column>
+            <vxe-column field="unitCost" title="单价"></vxe-column>
+          </vxe-table>
+        </i-card>
+      </div>
+
+      <div class="section">
+        <i-card title="产品 (Product)">
+          <i-select v-model="selectedProductId" style="width: 240px" @on-change="fetchBomAndCost">
+            <i-option v-for="p in products" :key="p.id" :value="p.id">{{p.code}} - {{p.name}}</i-option>
+          </i-select>
+          <div style="margin-top: 12px;">
+            <vxe-table :data="bomItems" border height="240">
+              <vxe-column field="id" title="ID" width="60"></vxe-column>
+              <vxe-column field="productId" title="产品ID" width="90"></vxe-column>
+              <vxe-column field="materialId" title="物料ID" width="90"></vxe-column>
+              <vxe-column field="quantity" title="数量"></vxe-column>
+            </vxe-table>
+          </div>
+          <div style="margin-top: 12px;">
+            <i-alert type="success" show-icon v-if="cost">
+              产品ID: {{cost.productId}}，BOM行: {{cost.bomLines}}，总成本: {{cost.totalCost}}
+            </i-alert>
+          </div>
+        </i-card>
+      </div>
+    </i-content>
+  </i-layout>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+<script src="https://unpkg.com/iview/dist/iview.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/vxe-table/lib/index.umd.min.js"></script>
+<script>
+  new Vue({
+    el: '#app',
+    data(){
+      return {
+        materials: [],
+        products: [],
+        bomItems: [],
+        selectedProductId: null,
+        cost: null
+      }
+    },
+    created(){
+      this.fetchMaterials();
+      this.fetchProducts();
+    },
+    methods: {
+      async fetchMaterials(){
+        const res = await axios.get('/api/materials', { params: { page: 1, size: 100 } });
+        this.materials = res.data.records || [];
+      },
+      async fetchProducts(){
+        const res = await axios.get('/api/products', { params: { page: 1, size: 100 } });
+        this.products = res.data.records || [];
+        if (this.products.length && !this.selectedProductId){
+          this.selectedProductId = this.products[0].id;
+          this.fetchBomAndCost();
+        }
+      },
+      async fetchBomAndCost(){
+        if(!this.selectedProductId) return;
+        const [bomRes, costRes] = await Promise.all([
+          axios.get('/api/bom-items', { params: { productId: this.selectedProductId, page: 1, size: 100 } }),
+          axios.get('/api/cost/product', { params: { productId: this.selectedProductId } })
+        ]);
+        this.bomItems = bomRes.data.records || [];
+        this.cost = costRes.data;
+      }
+    }
+  })
+;</script>
+</body>
+</html>
+
